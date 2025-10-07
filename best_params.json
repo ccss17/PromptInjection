@@ -1,0 +1,39 @@
+{
+    "number": 16,
+    "value": 0.9758064516129032,
+    "datetime_start": "2025-10-07 18:35:02",
+    "datetime_complete": "2025-10-07 18:39:20",
+    "duration": "0:04:18.230147",
+    "params": {
+        "gradient_accumulation_steps": 1,
+        "learning_rate": 4.4390540763318225e-05,
+        "lora_alpha_multiplier": 4,
+        "lora_dropout": 0.0,
+        "lora_r": 32,
+        "lr_scheduler_type": "cosine",
+        "max_seq_length": 2048,
+        "optim": "lion_32bit",
+        "per_device_train_batch_size": 16,
+        "target_modules_set": "qkv",
+        "warmup_ratio": 0.05,
+        "weight_decay": 0.005846666628429419
+    },
+    "user_attrs": {
+        "effective_batch_size": 16,
+        "eval_metrics": {
+            "eval_loss": 0.13108764588832855,
+            "eval_accuracy": 0.9754098360655737,
+            "eval_f1": 0.9758064516129032,
+            "eval_f1_positive": 0.9758064516129032,
+            "eval_f1_macro": 0.9754032258064516,
+            "eval_precision": 0.9603174603174603,
+            "eval_recall": 0.9918032786885246,
+            "eval_runtime": 2.1808,
+            "eval_samples_per_second": 111.887,
+            "eval_steps_per_second": 3.668,
+            "epoch": 3.0
+        },
+        "lora_alpha": 128
+    },
+    "state": "COMPLETE"
+}
