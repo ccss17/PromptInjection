@@ -1,3 +1,8 @@
+- https://wandb.ai/cccsss17-xxx/prompt-injection-detector
+- https://wandb.ai/cccsss17-xxx/prompt-injection-detector-hpo
+- https://huggingface.co/ccss17/modernbert-prompt-injection-detector
+- https://huggingface.co/spaces/ccss17/prompt-injection-detector
+
 # Prompt Injection Detector (ModernBERT LoRA)
 
 End-to-end pipeline for training, evaluating, and deploying a ModernBERT-based
