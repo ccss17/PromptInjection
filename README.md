@@ -11,15 +11,35 @@ Optuna, logged to Weights & Biases, and packaged for Hugging Face Hub/Spaces.
 
 ---
 
+## Development Environment
+
+Set up the Pixi-managed toolchain and dependencies:
+
+```bash
+pixi install
+```
+
+This creates the locked Python 3.13 environment, installs GPU-enabled PyTorch, and makes all project tasks (e.g., `pixi run train-best`) available.
+
+---
+
 ## Dataset
 
 Saved under `data/processed/` (see `dataset_info.json`).
 
-- **Total samples:** 2,450 (train 1,960 • validation 244 • test 246)
-- **Label balance:** ⟨normal = 50%⟩, ⟨attack = 50%⟩ in every split
-- **Sources:** chatgpt_jailbreak, deepset, harmbench variants, jailbreakbench,
+```bash
+pixi run prepare-data [--force]
+```
+
+Use `--force` to regenerate the Hugging Face dataset and derived statistics even when cached outputs exist.
+
+- **Split sizes:** train 1,960 • validation 244 • test 246 (2,450 total)
+- **Label balance:** perfectly stratified at 980/980 (train), 122/122 (val), 123/123 (test)
+- **Sources:** chatgpt_jailbreak, deepset, jailbreakbench, harmbench contextual/copyright/standard,
   notinject, openorca, ultrachat
-- **Storage format:** `Dataset.save_to_disk()` (arrow shards) and Parquet
+- **Token lengths:** median 25 tokens; p95 ≈ 495, p98 ≈ 940; 95% of prompts fit within 512 tokens,
+  and 98% within 1,024 tokens (see `length_statistics.json` for per-class coverage)
+- **Storage format:** `Dataset.save_to_disk()` (arrow shards) plus split Parquet exports
 
 ### Test examples surfaced in Spaces
 
@@ -30,6 +50,18 @@ social-engineering, exploit, and malware requests.
 ---
 
 ## Hyperparameter Search (Optuna)
+
+Candidate space explored via `scripts/optuna_search.py`:
+
+- Learning rate: log-uniform $[1\times10^{-5}, 5\times10^{-5}]$
+- Per-device batch size: {16, 32, 64, 128, 256} with eval batch size `min(train*2, 128)`
+- Gradient accumulation: {1, 2, 4} (effective batch = train * accumulation)
+- Warmup ratio: {0.03, 0.05, 0.1, 0.2}
+- Weight decay: log-uniform $[1\times10^{-6}, 5\times10^{-2}]$
+- Optimizer / LR scheduler: {`adamw_torch`, `lion_32bit`} × {`linear`, `cosine`}
+- LoRA configs: rank {8, 16, 32}, alpha multiplier {1, 2, 4}, dropout {0.0, 0.05, 0.1},
+  target modules in `TARGET_MODULE_CHOICES`
+- Max sequence length: {768, 1024, 1536, 2048}
 
 Results logged in [`best_params.json`](best_params.json); best trial (#16):
 
@@ -60,6 +92,18 @@ Best validation metrics from Optuna trial:
 
 ---
 
+### Batch-size tuning journey
+
+Running on a Vast.ai H200 instance (150.1 GB VRAM) gave plenty of headroom, but the large-batch experiments were counter‑productive:
+
+- [`batch_size=700`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/va9vasa1?nw=nwusercccsss17) – throughput was great, accuracy cratered.
+- [`batch_size=384`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/br9gw3xb?nw=nwusercccsss17) – still unstable, gradients appeared too “polished.”
+- [`batch_size=128`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/cleul7sr?nw=nwusercccsss17) – marginally better, but convergence lagged behind expectations.
+
+Letting Optuna co‑tune the entire space ultimately picked `per_device_train_batch_size=16` with no gradient accumulation. The smaller batch injected exactly the right amount of noise, and the validation F1 jumped to ~0.976—confirming that ModernBERT preferred stochasticity over massive batches despite the abundant GPU memory.
+
+---
+
 ## Training Run (W&B: `latest-run`)
 
 Configuration (`scripts/train.py`):
@@ -83,15 +127,11 @@ Additional CLI arguments recorded in
 
 Hardware/Environment:
 
-- OS: Ubuntu 22.04 (kernel 6.8)
 - Python: 3.13.7 (pixi-managed)
 - GPU: NVIDIA GeForce RTX 4070 Ti SUPER (17.17 GB)
 - CUDA: 13.0 (driver stack) / toolkit 12.9
-- CPU: 44 physical (88 logical)
-- Runtime: 7.98 minutes (train runtime 459.9 s, end-to-end 478 s)
 
-Key training statistics (from
-[`wandb-summary.json`](wandb/latest-run/files/wandb-summary.json)):
+Key training statistics:
 
 - Global steps: 340
 - Train loss (final): 0.1164 (running) / 0.2391 (logged `train_loss`)
@@ -130,18 +170,6 @@ prints accuracy, precision, recall, F1, and macro F1 per split.
 
 ---
 
-## Deployment Targets
-
-- **Model repo (default):** `ccss17/modernbert-prompt-injection-detector`
-- **Space repo (default):** `ccss17/prompt-injection-detector`
-- Use `pixi run deploy-hub` or `pixi run deploy-space` to publish the latest
-  adapters and Gradio app.
-
-`space_deployment/app.py` loads the Hugging Face model directly and mirrors the
-metrics/explanations exposed by `scripts/eval.py`.
-
----
-
 ## Reproducing the Pipeline
 
 1. **Environment**
@@ -177,17 +205,26 @@ metrics/explanations exposed by `scripts/eval.py`.
 	pixi run deploy-space
 	```
 
----
 
-## Artifacts
+## Limitations and Future Improvements
 
-- LoRA adapters: `outputs/modernbert-lora/final/`
-- Model card template: generated during `deploy_to_hub.py`
-- W&B run: `PromptInjectionDetector/latest-run`
-- Config logs: see the JSON files under `wandb/latest-run/files/`
+### Current Limitations
+The model achieves high F1 scores (0.97 on test set) but exhibits over-defense in production, misclassifying benign prompts as injections. For example, the harmless query "What’s the weather like in Seoul?" is flagged as injection with 98.5% confidence, due to:
+- **Imbalanced training data**: Trained on ~1:1 attack:normal ratio (train: 980/980; val: 122/122; test: 123/123), not reflecting real-world distributions where normal prompts vastly outnumber attacks (50:1 to 1000:1).
+- **Distribution shift**: Normal samples from OpenOrca, ultrachat_200k, and NotInject differ from production inputs, causing false positives on out-of-distribution benign prompts.
+- **Limited diversity**: ~2,000 normal samples fail to capture wide legitimate patterns, leading to high false positive rates (FPR) despite strong test performance.
+- **Threshold miscalibration**: Default 0.5 threshold ignores operational FPR constraints; evaluation lacks TNR (True Negative Rate) metrics.
 
----
+### Future Improvement Plan
+To address these, implement a phased approach:
+
+- Retrain with 50,000 normal samples (50:1 ratio) from OpenOrca and ultrachat_200k.
+- Apply class weighting (attack weight = 50) and Focal Loss (γ=2.0).
+- Evaluate TNR on NotInject (339 benign samples); calibrate threshold to FPR < 5% using ROC analysis.
+- Expected: 50-70% FPR reduction, TNR > 85%.
+
+
 
 ## License
 
-Apache-2.0 (see repository LICENSE).
+MIT

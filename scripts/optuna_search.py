@@ -66,7 +66,7 @@ class TruncatingDataset:
         return result
 
 
-def _hp_space_1(trial: optuna.Trial) -> Dict[str, object]:
+def _hp_space(trial: optuna.Trial) -> Dict[str, object]:
     """Define Optuna search space following HF/Unsloth guidance."""
 
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 5e-5, log=True)
@@ -96,59 +96,6 @@ def _hp_space_1(trial: optuna.Trial) -> Dict[str, object]:
     )
     max_seq_length = trial.suggest_categorical(
         "max_seq_length", SEQ_LENGTH_CHOICES
-    )
-
-    trial.set_user_attr(
-        "effective_batch_size",
-        per_device_train_batch_size * gradient_accumulation_steps,
-    )
-
-    return {
-        "learning_rate": learning_rate,
-        "per_device_train_batch_size": per_device_train_batch_size,
-        "per_device_eval_batch_size": min(
-            per_device_train_batch_size * 2, 128
-        ),
-        "gradient_accumulation_steps": gradient_accumulation_steps,
-        "warmup_ratio": warmup_ratio,
-        "weight_decay": weight_decay,
-        "optim": optim,
-        "lr_scheduler_type": lr_scheduler_type,
-        "lora_r": lora_r,
-        "lora_alpha": lora_alpha,
-        "lora_dropout": lora_dropout,
-        "target_modules_set": target_modules_set,
-        "max_seq_length": max_seq_length,
-    }
-
-
-def _hp_space_2(trial: optuna.Trial) -> Dict[str, object]:
-    """Define Optuna search space following HF/Unsloth guidance."""
-
-    learning_rate = trial.suggest_float(
-        "learning_rate", 3e-5, 5.5e-5, log=True
-    )
-    per_device_train_batch_size = trial.suggest_categorical(
-        "per_device_train_batch_size", [16, 32]
-    )
-    gradient_accumulation_steps = trial.suggest_categorical(
-        "gradient_accumulation_steps", [1, 2]
-    )
-    warmup_ratio = trial.suggest_categorical(
-        "warmup_ratio", [0.03, 0.05, 0.08]
-    )
-    weight_decay = trial.suggest_float("weight_decay", 2e-3, 2e-2, log=True)
-    optim = "lion_32bit"
-    lr_scheduler_type = "cosine"
-    lora_r = trial.suggest_categorical("lora_r", [24, 32, 40])
-    lora_alpha_multiplier = trial.suggest_categorical(
-        "lora_alpha_multiplier", [2, 4, 6]
-    )
-    lora_alpha = lora_r * lora_alpha_multiplier
-    lora_dropout = trial.suggest_categorical("lora_dropout", [0.0, 0.05])
-    target_modules_set = "qkv"
-    max_seq_length = trial.suggest_categorical(
-        "max_seq_length", [1024, 1536, 2048]
     )
 
     trial.set_user_attr(
@@ -337,8 +284,7 @@ def main(
         trainer = None
 
         try:
-            # params = _hp_space_1(trial)
-            params = _hp_space_2(trial)
+            params = _hp_space(trial)
             target_modules = TARGET_MODULE_CHOICES[
                 params["target_modules_set"]
             ]

@@ -12,8 +12,6 @@ platforms = ["linux-64"]
 prepare-data = "python scripts/prepare_data.py"
 prepare-data-force = "python scripts/prepare_data.py --force"
 
-test-train = "python scripts/train.py --batch-size 2 --gradient-accumulation-steps 1 --max-seq-length 128 --num-epochs 1 --eval-steps 50 --save-steps 50"
-test-dataset-configs = "python scripts/test_dataset_configs.py"
 optuna-search = "python scripts/optuna_search.py"
 
 # Local GPU Training (GTX 1050 Ti / 4GB VRAM)
@@ -40,19 +38,6 @@ eval4 = "python scripts/eval.py evaluate --splits test --batch_size 16"
 
 # Deployment to HuggingFace Hub & Spaces
 deploy-hub = "python scripts/deploy_to_hub.py"
-deploy-hub-private = "python scripts/deploy_to_hub.py --repo-id ccss17/modernbert-prompt-injection-detector --private"
-deploy-hub-custom = "python scripts/deploy_to_hub.py --model-path outputs/modernbert-lora/final --repo-id ccss17/modernbert-prompt-injection-detector"
-
-# Deploy Gradio demo to HuggingFace Spaces
-deploy-space = "python scripts/deploy_to_spaces.py --model-repo-id ccss17/modernbert-prompt-injection-detector --space-id ccss17/prompt-injection-detector"
-deploy-space-prepare = "python scripts/deploy_to_spaces.py --model-repo-id ccss17/modernbert-prompt-injection-detector --space-id ccss17/prompt-injection-detector --prepare-only"
-
-# Test app before deployment
-test-app = "python scripts/test_app.py"
-test-app-custom = "python scripts/test_app.py outputs/modernbert-lora/final"
-
-# Run Gradio app locally (test before deploying to Spaces)
-demo = "python app.py"
 
 [tool.pixi.system-requirements]
 cuda = "12.9"
