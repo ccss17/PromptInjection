@@ -9,7 +9,16 @@ End-to-end pipeline for training, evaluating, and deploying a ModernBERT-based
 prompt injection detector. The adapters are trained with LoRA, searched with
 Optuna, logged to Weights & Biases, and packaged for Hugging Face Hub/Spaces.
 
----
+Model Performance: Baseline vs LoRA Fine-tuned
+
+| Metric              | Baseline | LoRA (final/test) |
+||-|-|
+| Accuracy            | 0.6138   | 0.9797 |
+| Precision           | 0.7333   | 0.9758 |
+| Recall              | 0.3577   | 0.9837 |
+| F1 (positive class) | 0.4809   | 0.9798 |
+
+
 
 ## Development Environment
 
@@ -21,7 +30,26 @@ pixi install
 
 This creates the locked Python 3.13 environment, installs GPU-enabled PyTorch, and makes all project tasks (e.g., `pixi run train-best`) available.
 
----
+
+## Environment
+
+This project uses Pixi for reproducible environment management. Key specifications from `pyproject.toml`:
+
+- **Python Version**: 3.13.7
+- **CUDA**: 12.9 (required for GPU acceleration)
+- `transformers` (4.51.3–4.55.4): Core model loading and tokenization
+- `pytorch-gpu` (2.7.1): GPU-enabled PyTorch with CUDA support
+- `unsloth` (2025.9.11): Efficient LoRA fine-tuning for ModernBERT
+- `peft` (0.17.1–0.18): Parameter-efficient fine-tuning adapters
+- `optuna` (4.5.0–5): Hyperparameter optimization
+- `datasets` (3.4.1+): Data loading and processing
+- `evaluate` (0.4.6–0.5): Metrics computation
+- `accelerate` (1.10.1–2): Distributed training utilities
+- `flash-attn` (2.7.4): Optimized attention for faster inference
+- `langdetect` (1.0.9–2): Language detection for data filtering
+- `cuda-toolkit` (12.9.1–13): CUDA development tools
+
+
 
 ## Dataset
 
@@ -47,7 +75,7 @@ The Gradio demo now showcases real samples from the **test** split (see
 `space_deployment/app.py`): 4 normal prompts and 5 attack prompts, including
 social-engineering, exploit, and malware requests.
 
----
+
 
 ## Hyperparameter Search (Optuna)
 
@@ -66,7 +94,7 @@ Candidate space explored via `scripts/optuna_search.py`:
 Results logged in [`best_params.json`](best_params.json); best trial (#16):
 
 | Hyperparameter                  | Value |
-|---------------------------------|-------|
+||-|
 | Learning rate                   | 4.439e-05 |
 | Optimizer                       | lion_32bit |
 | Per-device train batch size     | 16 |
@@ -84,13 +112,13 @@ Results logged in [`best_params.json`](best_params.json); best trial (#16):
 Best validation metrics from Optuna trial:
 
 | Metric              | Score |
-|---------------------|-------|
+||-|
 | Accuracy            | 0.9754 |
 | Precision           | 0.9603 |
 | Recall              | 0.9918 |
 | F1 (positive class) | 0.9758 |
 
----
+
 
 ### Batch-size tuning journey
 
@@ -102,7 +130,7 @@ Running on a Vast.ai H200 instance (150.1 GB VRAM) gave plenty of headroom, bu
 
 Letting Optuna co‑tune the entire space ultimately picked `per_device_train_batch_size=16` with no gradient accumulation. The smaller batch injected exactly the right amount of noise, and the validation F1 jumped to ~0.976—confirming that ModernBERT preferred stochasticity over massive batches despite the abundant GPU memory.
 
----
+
 
 ## Training Run (W&B: `latest-run`)
 
@@ -139,16 +167,16 @@ Key training statistics:
 - Gradient norm: 1.976e-04
 - Total FLOPs: 8.46e15
 
-Baseline (pre-LoRA) metrics logged for comparison:
+Model Performance: Baseline vs LoRA Fine-tuned
 
 | Metric              | Baseline | LoRA (final/test) |
-|---------------------|----------|-------------------|
+||-|-|
 | Accuracy            | 0.6138   | 0.9797 |
 | Precision           | 0.7333   | 0.9758 |
 | Recall              | 0.3577   | 0.9837 |
 | F1 (positive class) | 0.4809   | 0.9798 |
 
----
+
 
 ## Evaluation
 
@@ -168,7 +196,7 @@ pixi run eval4             # test split, batch size 16
 `outputs/modernbert-lora/final`, exposes `predict` and `evaluate` via Fire, and
 prints accuracy, precision, recall, F1, and macro F1 per split.
 
----
+
 
 ## Reproducing the Pipeline
 
