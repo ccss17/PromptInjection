@@ -12,7 +12,7 @@ Optuna, logged to Weights & Biases, and packaged for Hugging Face Hub/Spaces.
 Model Performance: Baseline vs LoRA Fine-tuned
 
 | Metric              | Baseline | LoRA (final/test) |
-||-|-|
+|---|---|---|
 | Accuracy            | 0.6138   | 0.9797 |
 | Precision           | 0.7333   | 0.9758 |
 | Recall              | 0.3577   | 0.9837 |
@@ -94,7 +94,7 @@ Candidate space explored via `scripts/optuna_search.py`:
 Results logged in [`best_params.json`](best_params.json); best trial (#16):
 
 | Hyperparameter                  | Value |
-||-|
+|---|---|
 | Learning rate                   | 4.439e-05 |
 | Optimizer                       | lion_32bit |
 | Per-device train batch size     | 16 |
@@ -112,7 +112,7 @@ Results logged in [`best_params.json`](best_params.json); best trial (#16):
 Best validation metrics from Optuna trial:
 
 | Metric              | Score |
-||-|
+|---|---|
 | Accuracy            | 0.9754 |
 | Precision           | 0.9603 |
 | Recall              | 0.9918 |
@@ -170,7 +170,7 @@ Key training statistics:
 Model Performance: Baseline vs LoRA Fine-tuned
 
 | Metric              | Baseline | LoRA (final/test) |
-||-|-|
+|---|---|---|
 | Accuracy            | 0.6138   | 0.9797 |
 | Precision           | 0.7333   | 0.9758 |
 | Recall              | 0.3577   | 0.9837 |
