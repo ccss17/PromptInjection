@@ -59,7 +59,7 @@ Saved under `data/processed/` (see `dataset_info.json`).
 pixi run prepare-data [--force]
 ```
 
-Use `--force` to regenerate the Hugging Face dataset and derived statistics even when cached outputs exist.
+`--force` to regenerate dataset even when cached outputs exist.
 
 - **Split sizes:** train 1,960 • validation 244 • test 246 (2,450 total)
 - **Label balance:** perfectly stratified at 980/980 (train), 122/122 (val), 123/123 (test)
@@ -67,15 +67,6 @@ Use `--force` to regenerate the Hugging Face dataset and derived statistics even
   notinject, openorca, ultrachat
 - **Token lengths:** median 25 tokens; p95 ≈ 495, p98 ≈ 940; 95% of prompts fit within 512 tokens,
   and 98% within 1,024 tokens (see `length_statistics.json` for per-class coverage)
-- **Storage format:** `Dataset.save_to_disk()` (arrow shards) plus split Parquet exports
-
-### Test examples surfaced in Spaces
-
-The Gradio demo now showcases real samples from the **test** split (see
-`space_deployment/app.py`): 4 normal prompts and 5 attack prompts, including
-social-engineering, exploit, and malware requests.
-
-
 
 ## Hyperparameter Search (Optuna)
 
@@ -153,11 +144,6 @@ Additional CLI arguments recorded in
 --resume False
 ```
 
-Hardware/Environment:
-
-- Python: 3.13.7 (pixi-managed)
-- GPU: NVIDIA GeForce RTX 4070 Ti SUPER (17.17 GB)
-- CUDA: 13.0 (driver stack) / toolkit 12.9
 
 Key training statistics:
 
@@ -230,7 +216,6 @@ prints accuracy, precision, recall, F1, and macro F1 per split.
 
 	```bash
 	pixi run deploy-hub
-	pixi run deploy-space
 	```
 
 
