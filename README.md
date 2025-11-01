@@ -1,243 +1,49 @@
+
 - https://wandb.ai/cccsss17-xxx/prompt-injection-detector
 - https://wandb.ai/cccsss17-xxx/prompt-injection-detector-hpo
 - https://huggingface.co/ccss17/modernbert-prompt-injection-detector
 - https://huggingface.co/spaces/ccss17/prompt-injection-detector
 
-# Prompt Injection Detector (ModernBERT LoRA)
+# Prompt Injection Detection — ModernBERT SFT
 
-End-to-end pipeline for training, evaluating, and deploying a ModernBERT-based
-prompt injection detector. The adapters are trained with LoRA, searched with
-Optuna, logged to Weights & Biases, and packaged for Hugging Face Hub/Spaces.
 
-Model Performance: Baseline vs LoRA Fine-tuned
+* **Training**: PyTorch, Transformers, Unsloth, PEFT, Flash-Attention
+* **Optimization**: LoRA, Optuna HPO
 
-| Metric              | Baseline | LoRA (final/test) |
-|---|---|---|
-| Accuracy            | 0.6138   | 0.9797 |
-| Precision           | 0.7333   | 0.9758 |
-| Recall              | 0.3577   | 0.9837 |
-| F1 (positive class) | 0.4809   | 0.9798 |
+**Prompt dataset construction (total 2,450 samples)**:
 
+* **Benign:** [HuggingFaceH4/ultrachat_200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k), [Open-Orca/OpenOrca](https://huggingface.co/datasets/Open-Orca/OpenOrca), [leolee99/NotInject](https://huggingface.co/datasets/leolee99/NotInject)
+* **Attack:** [JailbreakBench/JBB-Behaviors](https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors), [walledai/HarmBench](https://huggingface.co/datasets/walledai/HarmBench), [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections), [rubend18/ChatGPT-Jailbreak-Prompts](https://huggingface.co/datasets/rubend18/ChatGPT-Jailbreak-Prompts)
 
+**Optuna-based HPO** — `HPO Logging (Wandb)`: [https://wandb.ai/cccsss17-xxx/prompt-injection-detector-hpo/runs/ayhldqbw?nw=nwusercccsss17](https://wandb.ai/cccsss17-xxx/prompt-injection-detector-hpo/runs/ayhldqbw?nw=nwusercccsss17)
 
-## Development Environment
+| Learning Rate | Batch Size | LoRA Rank | LoRA Alpha |
+| ------------: | :--------: | :-------: | :--------: |
+|     4.439e-05 |     16     |     32    |     128    |
 
-Set up the Pixi-managed toolchain and dependencies:
+**Training (25 epochs, early stopping `patience=5`)** — `Train Logging (Wandb)`: [https://wandb.ai/cccsss17-xxx/prompt-injection-detector](https://wandb.ai/cccsss17-xxx/prompt-injection-detector)
 
-```bash
-pixi install
-```
+* **Model**: ModernBERT-large (0.4B)
+* **Total training steps**: 340 steps
 
-This creates the locked Python 3.13 environment, installs GPU-enabled PyTorch, and makes all project tasks (e.g., `pixi run train-best`) available.
+## Results
 
+Hugging Face model: [ccss17/modernbert-prompt-injection-detector](https://huggingface.co/ccss17/modernbert-prompt-injection-detector)
 
-## Environment
+Hugging Face demo (Spaces): [ccss17/prompt-injection-detector Demo Spaces](https://huggingface.co/spaces/ccss17/prompt-injection-detector)
 
-This project uses Pixi for reproducible environment management. Key specifications from `pyproject.toml`:
+| Metric        | Baseline | LoRA Fine-tuned |
+| ------------- | -------: | --------------: |
+| **Accuracy**  |    61.4% |           98.0% |
+| **Precision** |    73.3% |           97.6% |
+| **Recall**    |    35.8% |           98.4% |
+| **F1 Score**  |    48.1% |           98.0% |
 
-- **Python Version**: 3.13.7
-- **CUDA**: 12.9 (required for GPU acceleration)
-- `transformers` (4.51.3–4.55.4): Core model loading and tokenization
-- `pytorch-gpu` (2.7.1): GPU-enabled PyTorch with CUDA support
-- `unsloth` (2025.9.11): Efficient LoRA fine-tuning for ModernBERT
-- `peft` (0.17.1–0.18): Parameter-efficient fine-tuning adapters
-- `optuna` (4.5.0–5): Hyperparameter optimization
-- `datasets` (3.4.1+): Data loading and processing
-- `evaluate` (0.4.6–0.5): Metrics computation
-- `accelerate` (1.10.1–2): Distributed training utilities
-- `flash-attn` (2.7.4): Optimized attention for faster inference
-- `langdetect` (1.0.9–2): Language detection for data filtering
-- `cuda-toolkit` (12.9.1–13): CUDA development tools
+**Notes — Observed issue**: The model sometimes falsely flags entirely novel benign prompts (e.g., "What’s the weather like in Seoul?") as attacks. Possible causes:
 
+1. **Dataset imbalance**: Although trained with a 1:1 ratio, the real-world distribution contains far fewer attack samples.
+2. **Distribution gap**: Benign samples derived from OpenOrca and ultrachat differ from real production inputs, causing domain shift.
 
-
-## Dataset
-
-Saved under `data/processed/` (see `dataset_info.json`).
-
-```bash
-pixi run prepare-data [--force]
-```
-
-`--force` to regenerate dataset even when cached outputs exist.
-
-- **Split sizes:** train 1,960 • validation 244 • test 246 (2,450 total)
-- **Label balance:** perfectly stratified at 980/980 (train), 122/122 (val), 123/123 (test)
-- **Sources:** chatgpt_jailbreak, deepset, jailbreakbench, harmbench contextual/copyright/standard,
-  notinject, openorca, ultrachat
-- **Token lengths:** median 25 tokens; p95 ≈ 495, p98 ≈ 940; 95% of prompts fit within 512 tokens,
-  and 98% within 1,024 tokens (see `length_statistics.json` for per-class coverage)
-
-## Hyperparameter Search (Optuna)
-
-Candidate space explored via `scripts/optuna_search.py`:
-
-- Learning rate: log-uniform $[1\times10^{-5}, 5\times10^{-5}]$
-- Per-device batch size: {16, 32, 64, 128, 256} with eval batch size `min(train*2, 128)`
-- Gradient accumulation: {1, 2, 4} (effective batch = train * accumulation)
-- Warmup ratio: {0.03, 0.05, 0.1, 0.2}
-- Weight decay: log-uniform $[1\times10^{-6}, 5\times10^{-2}]$
-- Optimizer / LR scheduler: {`adamw_torch`, `lion_32bit`} × {`linear`, `cosine`}
-- LoRA configs: rank {8, 16, 32}, alpha multiplier {1, 2, 4}, dropout {0.0, 0.05, 0.1},
-  target modules in `TARGET_MODULE_CHOICES`
-- Max sequence length: {768, 1024, 1536, 2048}
-
-Results logged in [`best_params.json`](best_params.json); best trial (#16):
-
-| Hyperparameter                  | Value |
-|---|---|
-| Learning rate                   | 4.439e-05 |
-| Optimizer                       | lion_32bit |
-| Per-device train batch size     | 16 |
-| Gradient accumulation steps     | 1 |
-| Effective batch size            | 16 |
-| Max sequence length             | 2048 |
-| LoRA rank (`lora_r`)            | 32 |
-| LoRA alpha                      | 128 (multiplier 4) |
-| LoRA dropout                    | 0.0 |
-| Target modules                  | qkv |
-| Warmup ratio                    | 0.05 |
-| Weight decay                    | 0.0058467 |
-| LR scheduler                    | cosine |
-
-Best validation metrics from Optuna trial:
-
-| Metric              | Score |
-|---|---|
-| Accuracy            | 0.9754 |
-| Precision           | 0.9603 |
-| Recall              | 0.9918 |
-| F1 (positive class) | 0.9758 |
-
-
-
-### Batch-size tuning journey
-
-Running on a Vast.ai H200 instance (150.1 GB VRAM) gave plenty of headroom, but the large-batch experiments were counter‑productive:
-
-- [`batch_size=700`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/va9vasa1?nw=nwusercccsss17) – throughput was great, accuracy cratered.
-- [`batch_size=384`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/br9gw3xb?nw=nwusercccsss17) – still unstable, gradients appeared too “polished.”
-- [`batch_size=128`](https://wandb.ai/cccsss17-xxx/prompt-injection-detector/runs/cleul7sr?nw=nwusercccsss17) – marginally better, but convergence lagged behind expectations.
-
-Letting Optuna co‑tune the entire space ultimately picked `per_device_train_batch_size=16` with no gradient accumulation. The smaller batch injected exactly the right amount of noise, and the validation F1 jumped to ~0.976—confirming that ModernBERT preferred stochasticity over massive batches despite the abundant GPU memory.
-
-
-
-## Training Run (W&B: `latest-run`)
-
-Configuration (`scripts/train.py`):
-
-```bash
-pixi run train-best
-```
-
-Additional CLI arguments recorded in
-[`wandb-metadata.json`](wandb/latest-run/files/wandb-metadata.json):
-
-```
---num_epochs 30
---early_stopping_patience 5
---logging_steps 15
---save_steps 10
---eval_steps 10
---use-wandb
---resume False
-```
-
-
-Key training statistics:
-
-- Global steps: 340
-- Train loss (final): 0.1164 (running) / 0.2391 (logged `train_loss`)
-- Train samples/sec: 127.86 • steps/sec: 8.02
-- Gradient norm: 1.976e-04
-- Total FLOPs: 8.46e15
-
-Model Performance: Baseline vs LoRA Fine-tuned
-
-| Metric              | Baseline | LoRA (final/test) |
-|---|---|---|
-| Accuracy            | 0.6138   | 0.9797 |
-| Precision           | 0.7333   | 0.9758 |
-| Recall              | 0.3577   | 0.9837 |
-| F1 (positive class) | 0.4809   | 0.9798 |
-
-
-
-## Evaluation
-
-Command line helpers (see `[tool.pixi.tasks]` in `pyproject.toml`):
-
-```bash
-# Single-prompt predictions (test samples)
-pixi run eval-normal1
-pixi run eval-attack3
-
-# Full dataset evaluation
-pixi run eval3             # all splits
-pixi run eval4             # test split, batch size 16
-```
-
-`scripts/eval.py` now loads LoRA adapters from
-`outputs/modernbert-lora/final`, exposes `predict` and `evaluate` via Fire, and
-prints accuracy, precision, recall, F1, and macro F1 per split.
-
-
-
-## Reproducing the Pipeline
-
-1. **Environment**
-
-	```bash
-	pixi install
-	```
-
-2. **Prepare data (optional refresh)**
-
-	```bash
-	pixi run prepare-data
-	```
-
-3. **Run Optuna search**
-
-	```bash
-	pixi run optuna-search
-	```
-
-4. **Train with best settings**
-
-	```bash
-	pixi run train-best
-	```
-
-5. **Evaluate** — choose from the tasks listed above (`eval3`, `eval4`, etc.).
-
-6. **Deploy**
-
-	```bash
-	pixi run deploy-hub
-	```
-
-
-## Limitations and Future Improvements
-
-### Current Limitations
-The model achieves high F1 scores (0.97 on test set) but exhibits over-defense in production, misclassifying benign prompts as injections. For example, the harmless query "What’s the weather like in Seoul?" is flagged as injection with 98.5% confidence, due to:
-- **Imbalanced training data**: Trained on ~1:1 attack:normal ratio (train: 980/980; val: 122/122; test: 123/123), not reflecting real-world distributions where normal prompts vastly outnumber attacks (50:1 to 1000:1).
-- **Distribution shift**: Normal samples from OpenOrca, ultrachat_200k, and NotInject differ from production inputs, causing false positives on out-of-distribution benign prompts.
-- **Limited diversity**: ~2,000 normal samples fail to capture wide legitimate patterns, leading to high false positive rates (FPR) despite strong test performance.
-- **Threshold miscalibration**: Default 0.5 threshold ignores operational FPR constraints; evaluation lacks TNR (True Negative Rate) metrics.
-
-### Future Improvement Plan
-To address these, implement a phased approach:
-
-- Retrain with 50,000 normal samples (50:1 ratio) from OpenOrca and ultrachat_200k.
-- Apply class weighting (attack weight = 50) and Focal Loss (γ=2.0).
-- Evaluate TNR on NotInject (339 benign samples); calibrate threshold to FPR < 5% using ROC analysis.
-- Expected: 50-70% FPR reduction, TNR > 85%.
-
-
-
-## License
+# License
 
 MIT

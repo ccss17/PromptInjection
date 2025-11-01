@@ -128,3 +128,8 @@ unsloth_compiled_cache/
 docs/
 data/
 configs/
+
+space_deployment/
+app.py
+check_attack_availability.py
+verify_model.py

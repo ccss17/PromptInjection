@@ -1,7 +1,0 @@
-# HuggingFace Spaces requirements
-# Minimal dependencies for Gradio demo
-
-torch>=2.1.0
-transformers>=4.46.0
-gradio>=4.0.0
-accelerate>=0.25.0
